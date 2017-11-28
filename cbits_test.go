@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rai-project/nvidia-smi"
+
 	"github.com/GeertJohan/go-sourcepath"
 	"github.com/stretchr/testify/assert"
 
@@ -19,15 +21,17 @@ import (
 var (
 	thisDir       = sourcepath.MustAbsoluteDir()
 	classFilePath = filepath.Join(thisDir, "_fixtures", "ilsvrc12_synset_words.txt")
-	graphFilePath = filepath.Join("/home/abduld/code/cntk/PretrainedModels", "VGG16_ImageNet_Caffe.model")
+	graphFilePath = filepath.Join("/home/abduld/code/cntk/PretrainedModels", "AlexNet_ImageNet_Caffe.model")
 )
 
 func TestCNTK(t *testing.T) {
 
+	nvidiasmi.Init()
+
 	reader, _ := os.Open(filepath.Join(thisDir, "_fixtures", "cat.jpg"))
 	defer reader.Close()
 
-	img0, err := image.Read(reader, image.Resized(224, 224))
+	img0, err := image.Read(reader, image.Resized(227, 227))
 	assert.NoError(t, err)
 
 	img := img0.(*types.RGBImage)
@@ -57,14 +61,16 @@ func TestCNTK(t *testing.T) {
 	pred, err := New(
 		options.Graph([]byte(graphFilePath)),
 		options.BatchSize(1),
+		options.Device(options.CUDA_DEVICE, 0),
 	)
 	if err != nil {
 		t.Errorf("CNTK initiate failed %v", err)
+		return
 	}
 
 	defer pred.Close()
 
-	result, err := pred.Predict(imgArray, "z")
+	result, err := pred.Predict(imgArray, "z", []uint32{3, 227, 227})
 	if err != nil {
 		t.Errorf("CNTK inference failed %v", err)
 	}

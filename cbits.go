@@ -42,10 +42,14 @@ func New(opts0 ...options.Option) (*Predictor, error) {
 			}
 		}
 	}
+
+	deviceTypeString := C.CString(deviceType)
+	defer C.free(unsafe.Pointer(deviceTypeString))
+
 	ctx := C.NewCNTK(
 		modelFileString,
 		C.int(opts.BatchSize()),
-		C.CString(deviceType),
+		deviceTypeString,
 		C.int(deviceId),
 	)
 	return &Predictor{
@@ -54,15 +58,31 @@ func New(opts0 ...options.Option) (*Predictor, error) {
 	}, nil
 }
 
-func (p *Predictor) Predict(input []float32, outputLayerName0 string) (Predictions, error) {
+func prod(arry []uint32) int64 {
+	accum := int64(1)
+	for _, e := range arry {
+		accum *= int64(e)
+	}
+	return accum
+}
+
+func (p *Predictor) Predict(input []float32, outputLayerName0 string, shape []uint32) (Predictions, error) {
 	if outputLayerName0 == "" {
 		return nil, errors.New("expecting a valid (non-empty) output layer name")
 	}
 	outputLayerName := C.CString(outputLayerName0)
 	defer C.free(unsafe.Pointer(outputLayerName))
 
+	batchSize := int64(p.options.BatchSize())
+	shapeLen := prod(shape)
+	dataLen := int64(len(input)) / shapeLen
+	if batchSize > dataLen {
+		padding := make([]float32, (batchSize-dataLen)*shapeLen)
+		input = append(input, padding...)
+	}
+
 	ptr := (*C.float)(unsafe.Pointer(&input[0]))
-	r := C.PredictCNTK(p.ctx, ptr, outputLayerName, C.int(p.options.BatchSize()))
+	r := C.PredictCNTK(p.ctx, ptr, outputLayerName, C.int(batchSize))
 	if r == nil {
 		return nil, errors.New("failed to perform CNTK prediction")
 	}

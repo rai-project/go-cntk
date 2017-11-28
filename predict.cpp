@@ -32,7 +32,7 @@ using json = nlohmann::json;
 
 class Predictor {
 public:
-  Predictor(FunctionPtr modelFunc) : modelFunc_(modelFunc){};
+  Predictor(FunctionPtr modelFunc, DeviceDescriptor device) : modelFunc_(modelFunc) , device_(device) {};
   ~Predictor() {
     if (prof_) {
       prof_->reset();
@@ -61,10 +61,13 @@ PredictorContext NewCNTK(const char *modelFile, int batch,
                          const char *deviceType, const int deviceID) {
   try {
     auto device = DeviceDescriptor::CPUDevice();
-
+    if (deviceType != nullptr && std::string(deviceType) == "GPU") {
+      std::cerr << "cntk is using the gpu!!\n";
+      device = DeviceDescriptor::GPUDevice(deviceID);
+    }
     auto modelFunc =
         Function::Load(strtowstr(modelFile), device, ModelFormat::CNTKv2);
-    Predictor *pred = new Predictor(modelFunc);
+    Predictor *pred = new Predictor(modelFunc, device);
     return (PredictorContext)pred;
   } catch (const std::invalid_argument &ex) {
     return nullptr;
