@@ -8,11 +8,11 @@
 #include "timer.impl.hpp"
 
 #include <algorithm>
-#include <iostream>
-#include <vector>
-#include <locale>
 #include <codecvt>
+#include <iostream>
+#include <locale>
 #include <string>
+#include <vector>
 
 #include "CNTKLibrary.h"
 #include "Eval.h"
@@ -34,10 +34,6 @@ class Predictor {
 public:
   Predictor(FunctionPtr modelFunc) : modelFunc_(modelFunc){};
   ~Predictor() {
-
-    if (modelFunc_) {
-      // modelFunc_->destroy();
-    }
     if (prof_) {
       prof_->reset();
       delete prof_;
@@ -45,25 +41,24 @@ public:
     }
   }
 
-  FunctionPtr modelFunc_;
+  FunctionPtr modelFunc_{nullptr};
+  DeviceDescriptor device_{DeviceDescriptor::CPUDevice()};
   profile *prof_{nullptr};
   bool prof_registered_{false};
 };
 
-
-inline std::wstring strtowstr(const std::string& str)
-{
-    std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
-    return converter.from_bytes(str);
+inline std::wstring strtowstr(const std::string &str) {
+  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+  return converter.from_bytes(str);
 }
 
-
-PredictorContext NewCNTK(const char *modelFile, int batch, const char*deviceType, const int deviceID) {
+PredictorContext NewCNTK(const char *modelFile, int batch,
+                         const char *deviceType, const int deviceID) {
   try {
-     auto device = DeviceDescriptor::CPUDevice();
+    auto device = DeviceDescriptor::CPUDevice();
 
-
-    auto modelFunc = Function::Load(strtowstr(modelFile), device, ModelFormat::CNTKv2);
+    auto modelFunc =
+        Function::Load(strtowstr(modelFile), device, ModelFormat::CNTKv2);
     Predictor *pred = new Predictor(modelFunc);
     return (PredictorContext)pred;
   } catch (const std::invalid_argument &ex) {
@@ -80,24 +75,62 @@ void DeleteCNTK(PredictorContext pred) {
 }
 
 const char *PredictCNTK(PredictorContext pred, float *input,
-                            const char *input_layer_name,
-                            const char *output_layer_name,
-                            const int batchSize) {
+                        const int batchSize) {
 
   auto predictor = (Predictor *)pred;
-
   if (predictor == nullptr) {
     std::cerr << "CNTK prediction error on " << __LINE__ << "\n";
     return nullptr;
   }
   auto modelFunc = predictor->modelFunc_;
-  return nullptr;
+
+  const auto device = predictor->device_;
+
+  // Get input variable. The model has only one single input.
+  Variable inputVar = modelFunc->Arguments()[0];
+
+  // The model has only one output.
+  // If the model has more than one output, use modelFunc->Outputs to get the
+  // list of output variables.
+  Variable outputVar = modelFunc->Output();
+
+  // Create input value and input data map
+  std::vector<float> inputData(input, input + inputVar.Shape().TotalSize());
+  ValuePtr inputVal = Value::CreateBatch(inputVar.Shape(), inputData, device);
+  std::unordered_map<Variable, ValuePtr> inputDataMap = {{inputVar, inputVal}};
+
+  // Create output data map. Using null as Value to indicate using system
+  // allocated memory.
+  // Alternatively, create a Value object and add it to the data map.
+  std::unordered_map<Variable, ValuePtr> outputDataMap = {{outputVar, nullptr}};
+
+  // Start evaluation on the device
+  modelFunc->Evaluate(inputDataMap, outputDataMap, device);
+
+  std::vector<std::vector<float>> resultsWrapper;
+
+  CNTK::ValuePtr outputVal = outputDataMap[outputVar];
+  outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
+  auto output = resultsWrapper[0];
+
+  json preds = json::array();
+
+  for (int cnt = 0; cnt < batchSize; cnt++) {
+    const auto output_size = output.size() / batchSize;
+    for (int idx = 0; idx < output_size; idx++) {
+      preds.push_back(
+          {{"index", idx}, {"probability", output[cnt * output_size + idx]}});
+    }
+  }
+
+  auto res = strdup(preds.dump().c_str());
+  return res;
 }
 
 void CNTKInit() {}
 
 void CNTKStartProfiling(PredictorContext pred, const char *name,
-                            const char *metadata) {
+                        const char *metadata) {
   auto predictor = (Predictor *)pred;
   if (predictor == nullptr) {
     return;

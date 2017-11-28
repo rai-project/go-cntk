@@ -9,9 +9,7 @@ typedef void *PredictorContext;
 
 PredictorContext NewCNTK(const char *modelFile, int batch, const char*deviceType, const int deviceID);
 void DeleteCNTK(PredictorContext pred);
-const char *PredictCNTK(PredictorContext pred, float *input,
-                            const char *input_layer_name,
-                            const char *output_layer_name, const int batchSize);
+const char *PredictCNTK(PredictorContext pred, float *input, int batchSize);
 
 void CNTKInit();
 
