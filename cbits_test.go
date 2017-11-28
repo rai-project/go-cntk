@@ -19,7 +19,7 @@ import (
 var (
 	thisDir       = sourcepath.MustAbsoluteDir()
 	classFilePath = filepath.Join(thisDir, "_fixtures", "ilsvrc12_synset_words.txt")
-	graphFilePath = filepath.Join("/home/abduld/code/cntk/PretrainedModels", "AlexNet_ImageNet_Caffe.model")
+	graphFilePath = filepath.Join("/home/abduld/code/cntk/PretrainedModels", "VGG16_ImageNet_Caffe.model")
 )
 
 func TestCNTK(t *testing.T) {
@@ -27,7 +27,7 @@ func TestCNTK(t *testing.T) {
 	reader, _ := os.Open(filepath.Join(thisDir, "_fixtures", "cat.jpg"))
 	defer reader.Close()
 
-	img0, err := image.Read(reader, image.Resized(227, 227))
+	img0, err := image.Read(reader, image.Resized(224, 224))
 	assert.NoError(t, err)
 
 	img := img0.(*types.RGBImage)
@@ -64,7 +64,7 @@ func TestCNTK(t *testing.T) {
 
 	defer pred.Close()
 
-	result, err := pred.Predict(imgArray)
+	result, err := pred.Predict(imgArray, "z")
 	if err != nil {
 		t.Errorf("CNTK inference failed %v", err)
 	}

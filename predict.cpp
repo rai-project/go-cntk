@@ -52,6 +52,11 @@ inline std::wstring strtowstr(const std::string &str) {
   return converter.from_bytes(str);
 }
 
+inline std::string wstrtostr(const std::wstring &wstr) {
+  std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> converter;
+  return converter.to_bytes(wstr);
+}
+
 PredictorContext NewCNTK(const char *modelFile, int batch,
                          const char *deviceType, const int deviceID) {
   try {
@@ -75,56 +80,89 @@ void DeleteCNTK(PredictorContext pred) {
 }
 
 const char *PredictCNTK(PredictorContext pred, float *input,
-                        const int batchSize) {
+                        const char *output_layer_name, const int batchSize) {
 
-  auto predictor = (Predictor *)pred;
-  if (predictor == nullptr) {
-    std::cerr << "CNTK prediction error on " << __LINE__ << "\n";
+  try {
+    auto predictor = (Predictor *)pred;
+    if (predictor == nullptr) {
+      std::cerr << "CNTK prediction error on " << __LINE__ << "\n";
+      return nullptr;
+    }
+    auto modelFunc = predictor->modelFunc_;
+
+    const auto device = predictor->device_;
+
+    // Get input variable. The model has only one single input.
+    Variable inputVar = modelFunc->Arguments()[0];
+
+    Variable outputVar;
+    if (modelFunc->Outputs().size() == 1) {
+      outputVar = modelFunc->Output();
+    } else {
+      const auto outputs = modelFunc->Outputs();
+      const auto output_layer_name_string = strtowstr(output_layer_name);
+      auto f = std::find_if(
+          outputs.begin(), outputs.end(), [=](const Variable &var) {
+            if (var.Name() == output_layer_name_string && var.IsOutput()) {
+              return true;
+            }
+            return false;
+          });
+      if (f == outputs.end()) {
+        std::cerr << "cannot find " << std::string(output_layer_name)
+                  << " in the model. Valid outputs are: \n";
+        for (const auto out : modelFunc->Outputs()) {
+          std::cerr << wstrtostr(out.AsString())
+                    << " with name = " << wstrtostr(out.Name()) << "\n";
+        }
+        std::cerr << "make sure that the layer exists.";
+        return nullptr;
+      }
+      outputVar = *f;
+    }
+
+    // Create input value and input data map
+    std::vector<float> inputData(input, input + inputVar.Shape().TotalSize());
+    ValuePtr inputVal = Value::CreateBatch(inputVar.Shape(), inputData, device);
+    std::unordered_map<Variable, ValuePtr> inputDataMap = {
+        {inputVar, inputVal}};
+
+    // Create output data map. Using null as Value to indicate using system
+    // allocated memory.
+    // Alternatively, create a Value object and add it to the data map.
+    std::unordered_map<Variable, ValuePtr> outputDataMap = {
+        {outputVar, nullptr}};
+
+    // Start evaluation on the device
+    modelFunc->Evaluate(inputDataMap, outputDataMap, device);
+
+    std::vector<std::vector<float>> resultsWrapper;
+
+    CNTK::ValuePtr outputVal = outputDataMap[outputVar];
+    outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
+    auto output = resultsWrapper[0];
+
+    json preds = json::array();
+
+    for (int cnt = 0; cnt < batchSize; cnt++) {
+      const auto output_size = output.size() / batchSize;
+      for (int idx = 0; idx < output_size; idx++) {
+        preds.push_back(
+            {{"index", idx}, {"probability", output[cnt * output_size + idx]}});
+      }
+    }
+
+    auto res = strdup(preds.dump().c_str());
+    return res;
+  } catch (const std::runtime_error &e) {
+    std::cerr << "failed to perform predict on cntk model :: runtime error :: "
+              << e.what() << "\n";
+    return nullptr;
+  } catch (const std::exception &e) {
+    std::cerr << "failed to perform predict on cntk model :: exception :: "
+              << e.what() << "\n";
     return nullptr;
   }
-  auto modelFunc = predictor->modelFunc_;
-
-  const auto device = predictor->device_;
-
-  // Get input variable. The model has only one single input.
-  Variable inputVar = modelFunc->Arguments()[0];
-
-  // The model has only one output.
-  // If the model has more than one output, use modelFunc->Outputs to get the
-  // list of output variables.
-  Variable outputVar = modelFunc->Output();
-
-  // Create input value and input data map
-  std::vector<float> inputData(input, input + inputVar.Shape().TotalSize());
-  ValuePtr inputVal = Value::CreateBatch(inputVar.Shape(), inputData, device);
-  std::unordered_map<Variable, ValuePtr> inputDataMap = {{inputVar, inputVal}};
-
-  // Create output data map. Using null as Value to indicate using system
-  // allocated memory.
-  // Alternatively, create a Value object and add it to the data map.
-  std::unordered_map<Variable, ValuePtr> outputDataMap = {{outputVar, nullptr}};
-
-  // Start evaluation on the device
-  modelFunc->Evaluate(inputDataMap, outputDataMap, device);
-
-  std::vector<std::vector<float>> resultsWrapper;
-
-  CNTK::ValuePtr outputVal = outputDataMap[outputVar];
-  outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
-  auto output = resultsWrapper[0];
-
-  json preds = json::array();
-
-  for (int cnt = 0; cnt < batchSize; cnt++) {
-    const auto output_size = output.size() / batchSize;
-    for (int idx = 0; idx < output_size; idx++) {
-      preds.push_back(
-          {{"index", idx}, {"probability", output[cnt * output_size + idx]}});
-    }
-  }
-
-  auto res = strdup(preds.dump().c_str());
-  return res;
 }
 
 void CNTKInit() {}

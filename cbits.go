@@ -54,10 +54,15 @@ func New(opts0 ...options.Option) (*Predictor, error) {
 	}, nil
 }
 
-func (p *Predictor) Predict(input []float32) (Predictions, error) {
+func (p *Predictor) Predict(input []float32, outputLayerName0 string) (Predictions, error) {
+	if outputLayerName0 == "" {
+		return nil, errors.New("expecting a valid (non-empty) output layer name")
+	}
+	outputLayerName := C.CString(outputLayerName0)
+	defer C.free(unsafe.Pointer(outputLayerName))
 
 	ptr := (*C.float)(unsafe.Pointer(&input[0]))
-	r := C.PredictCNTK(p.ctx, ptr, C.int(p.options.BatchSize()))
+	r := C.PredictCNTK(p.ctx, ptr, outputLayerName, C.int(p.options.BatchSize()))
 	if r == nil {
 		return nil, errors.New("failed to perform CNTK prediction")
 	}
