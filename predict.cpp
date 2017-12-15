@@ -32,7 +32,8 @@ using json = nlohmann::json;
 
 class Predictor {
 public:
-  Predictor(FunctionPtr modelFunc, DeviceDescriptor device) : modelFunc_(modelFunc) , device_(device) {};
+  Predictor(FunctionPtr modelFunc, DeviceDescriptor device)
+      : modelFunc_(modelFunc), device_(device){};
   ~Predictor() {
     if (prof_) {
       prof_->reset();
@@ -57,8 +58,8 @@ inline std::string wstrtostr(const std::wstring &wstr) {
   return converter.to_bytes(wstr);
 }
 
-PredictorContext NewCNTK(const char *modelFile, int batch,
-                         const char *deviceType, const int deviceID) {
+PredictorContext NewCNTK(const char *modelFile, const char *deviceType,
+                         const int deviceID) {
   try {
     auto device = DeviceDescriptor::CPUDevice();
     if (deviceType != nullptr && std::string(deviceType) == "GPU") {
@@ -125,7 +126,8 @@ const char *PredictCNTK(PredictorContext pred, float *input,
     }
 
     // Create input value and input data map
-    std::vector<float> inputData(input, input + inputVar.Shape().TotalSize());
+    std::vector<float> inputData(input, input + inputVar.Shape().TotalSize() *
+                                                    batchSize);
     ValuePtr inputVal = Value::CreateBatch(inputVar.Shape(), inputData, device);
     std::unordered_map<Variable, ValuePtr> inputDataMap = {
         {inputVar, inputVal}};
@@ -143,15 +145,15 @@ const char *PredictCNTK(PredictorContext pred, float *input,
 
     CNTK::ValuePtr outputVal = outputDataMap[outputVar];
     outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
-    auto output = resultsWrapper[0];
+
+    const auto output_size = resultsWrapper[0].size();
 
     json preds = json::array();
 
     for (int cnt = 0; cnt < batchSize; cnt++) {
-      const auto output_size = output.size() / batchSize;
       for (int idx = 0; idx < output_size; idx++) {
         preds.push_back(
-            {{"index", idx}, {"probability", output[cnt * output_size + idx]}});
+            {{"index", idx}, {"probability", resultsWrapper[cnt][idx]}});
       }
     }
 

@@ -7,14 +7,16 @@ extern "C" {
 
 typedef void *PredictorContext;
 
-PredictorContext NewCNTK(const char *modelFile, int batch, const char*deviceType, const int deviceID);
+PredictorContext NewCNTK(const char *modelFile, const char *deviceType,
+                         const int deviceID);
 void DeleteCNTK(PredictorContext pred);
-const char *PredictCNTK(PredictorContext pred, float *input, const char *output_layer_name, int batchSize);
+const char *PredictCNTK(PredictorContext pred, float *input,
+                        const char *output_layer_name, int batchSize);
 
 void CNTKInit();
 
 void CNTKStartProfiling(PredictorContext pred, const char *name,
-                            const char *metadata);
+                        const char *metadata);
 
 void CNTKEndProfiling(PredictorContext pred);
 

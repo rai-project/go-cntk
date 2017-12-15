@@ -48,7 +48,6 @@ func New(opts0 ...options.Option) (*Predictor, error) {
 
 	ctx := C.NewCNTK(
 		modelFileString,
-		C.int(opts.BatchSize()),
 		deviceTypeString,
 		C.int(deviceId),
 	)
