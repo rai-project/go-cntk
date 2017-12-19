@@ -63,7 +63,7 @@ PredictorContext NewCNTK(const char *modelFile, const char *deviceType,
   try {
     auto device = DeviceDescriptor::CPUDevice();
     if (deviceType != nullptr && std::string(deviceType) == "GPU") {
-      std::cerr << "cntk is using the gpu!!\n";
+      //std::cerr << "cntk is using the gpu!!\n";
       device = DeviceDescriptor::GPUDevice(deviceID);
     }
     auto modelFunc =
