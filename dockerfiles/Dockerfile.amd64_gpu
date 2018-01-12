@@ -23,6 +23,8 @@ LABEL org.carml.go-cntk.build-date=$BUILD_DATE \
 ########## LIBRARY INSTALLATION ###################
 WORKDIR /opt
 
+RUN apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/*
+
 RUN CNTK_VERSION_DASHED=$(echo $FRAMEWORK_VERSION | tr . -) && \
     CNTK_SHA256="013d1050f2f8d7240274e140f41b01a29508f2296388728aababb776fef58667" && \
     wget -q https://cntk.ai/BinaryDrop/CNTK-${CNTK_VERSION_DASHED}-Linux-64bit-GPU.tar.gz && \
