@@ -31,7 +31,7 @@ RUN CNTK_VERSION_DASHED=$(echo $CNTK_VERSION | tr . -) && \
     echo "$CNTK_SHA256 CNTK-${CNTK_VERSION_DASHED}-Linux-64bit-CPU-Only.tar.gz" | sha256sum --check --strict - && \
     tar -xzf CNTK-${CNTK_VERSION_DASHED}-Linux-64bit-CPU-Only.tar.gz && \
     rm -f CNTK-${CNTK_VERSION_DASHED}-Linux-64bit-CPU-Only.tar.gz && \
-    /bin/bash $WORKDIR/cntk/Scripts/install/linux/install-cntk.sh --py-version 35 --docker
+    /bin/bash /opt/cntk/Scripts/install/linux/install-cntk.sh --py-version 35 --docker
 
 ########## GO BINDING INSTALLATION ###################
 ENV PKG github.com/rai-project/go-cntk
