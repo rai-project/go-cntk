@@ -1,0 +1,25 @@
+package: github.com/rai-project/go-cntk
+import:
+- package: github.com/Unknwon/com
+  version: ~1.0.0
+- package: github.com/ianlancetaylor/cgosymbolizer
+- package: github.com/pkg/errors
+  version: ~0.8.0
+- package: github.com/rai-project/config
+- package: github.com/rai-project/dlframework
+  version: ~0.2.19
+  subpackages:
+  - framework/options
+- package: github.com/rai-project/logger
+- package: github.com/rai-project/nvidia-smi
+- package: github.com/sirupsen/logrus
+  version: ~1.0.4
+testImport:
+- package: github.com/GeertJohan/go-sourcepath
+- package: github.com/rai-project/image
+  subpackages:
+  - types
+- package: github.com/stretchr/testify
+  version: ~1.2.0
+  subpackages:
+  - assert
