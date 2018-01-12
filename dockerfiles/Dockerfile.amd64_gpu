@@ -21,7 +21,7 @@ LABEL org.carml.go-cntk.build-date=$BUILD_DATE \
       org.carml.go-cntk.schema-version="1.0"
 
 ########## LIBRARY INSTALLATION ###################
-WORKDIR /opt/frameworks
+WORKDIR /opt
 
 RUN CNTK_VERSION_DASHED=$(echo $FRAMEWORK_VERSION | tr . -) && \
     CNTK_SHA256="013d1050f2f8d7240274e140f41b01a29508f2296388728aababb776fef58667" && \
