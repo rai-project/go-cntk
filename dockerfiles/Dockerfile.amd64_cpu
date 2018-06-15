@@ -1,4 +1,4 @@
-FROM carml/base:amd64-cpu-latest
+FROM carml/base:amd64-gpu-latest
 MAINTAINER Abdul Dakkak <dakkak@illinois.edu>
 
 # Build-time metadata as defined at http://label-schema.org
@@ -25,14 +25,23 @@ WORKDIR /opt
 
 RUN apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/*
 
-RUN CNTK_VERSION_DASHED=$(echo $CNTK_VERSION | tr . -) && \
-    CNTK_SHA256="fc3e4e304fc810e93b9a350a80a6872fdc64cd124fd49571bd1ff9297c212f40" && \
+RUN CNTK_VERSION_DASHED=$(echo $FRAMEWORK_VERSION | tr . -) && \
+    CNTK_SHA256="386fe7589cb8759611d68a8ed8c888bf6b5dec3c3b2772c2c6a680ffe9fcce60" && \
     wget -q https://cntk.ai/BinaryDrop/CNTK-${CNTK_VERSION_DASHED}-Linux-64bit-CPU-Only.tar.gz && \
     echo "$CNTK_SHA256 CNTK-${CNTK_VERSION_DASHED}-Linux-64bit-CPU-Only.tar.gz" | sha256sum --check --strict - && \
     tar -xzf CNTK-${CNTK_VERSION_DASHED}-Linux-64bit-CPU-Only.tar.gz && \
     rm -f CNTK-${CNTK_VERSION_DASHED}-Linux-64bit-CPU-Only.tar.gz && \
     /bin/bash /opt/cntk/Scripts/install/linux/install-cntk.sh --py-version 35 --docker
 
+########## COPYING MISSING HEADER FROM SOURCE #########
+RUN CNTK_VERSION_DASHED=$(echo $FRAMEWORK_VERSION | tr . -) && \
+    CNTK_SHA256="dacbc169e1ff9eb4b51d9e84772571dcce14aa7640d71be57e03c0a791befaf9" && \
+    wget -q https://github.com/Microsoft/CNTK/archive/v2.5.1.tar.gz && \
+    echo "$CNTK_SHA256 v${FRAMEWORK_VERSION}.tar.gz" | sha256sum --check --strict - && \
+    tar -xzf v${FRAMEWORK_VERSION}.tar.gz && \
+    rm -f v${FRAMEWORK_VERSION}.tar.gz && \
+    cp CNTK-${FRAMEWORK_VERSION}/Source/CNTKv2LibraryDll/API/HalfConverter.hpp /opt/cntk/Include/HalfConverter.hpp
+    
 ########## GO BINDING INSTALLATION ###################
 ENV PKG github.com/rai-project/go-cntk
 WORKDIR $GOPATH/src/$PKG
