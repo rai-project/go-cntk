@@ -1,7 +1,7 @@
 package: github.com/rai-project/go-cntk
 import:
 - package: github.com/Unknwon/com
-  version: ~1.0.0
+  version: ^1.0.0
 - package: github.com/ianlancetaylor/cgosymbolizer
 - package: github.com/pkg/errors
   version: ~0.8.0
