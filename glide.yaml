@@ -13,7 +13,6 @@ import:
 - package: github.com/rai-project/nvidia-smi
 - package: github.com/sirupsen/logrus
   version: ~1.0.4
-testImport:
 - package: github.com/GeertJohan/go-sourcepath
 - package: github.com/rai-project/image
   subpackages:
