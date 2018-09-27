@@ -7,6 +7,9 @@
 #include "timer.h"
 #include "timer.impl.hpp"
 
+#include "cuda.h"
+#include "cuda_runtime.h"
+
 #include <algorithm>
 #include <codecvt>
 #include <iostream>
@@ -164,13 +167,14 @@ const char *PredictCNTK(PredictorContext pred, float *input,
         {outputVar, nullptr}};
     const auto start = now();
     modelFunc->Evaluate(inputDataMap, outputDataMap, device);
+    cudaDeviceSynchronize();
 
+    const auto end = now();
+    es += elapsed_time(start, end);
     std::vector<std::vector<float>> resultsWrapper;
 
     CNTK::ValuePtr outputVal = outputDataMap[outputVar];
     outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
-    const auto end = now();
-    es += elapsed_time(start, end);
   }
  // std::cout << batchSize << ",";
   std::cout <<  es / iters << "\n";
