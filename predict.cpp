@@ -145,9 +145,35 @@ const char *PredictCNTK(PredictorContext pred, float *input,
 
     CNTK::ValuePtr outputVal = outputDataMap[outputVar];
     outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
-
     const auto output_size = resultsWrapper[0].size();
 
+  for (int ii =0 ;ii<10;ii++) {
+    std::unordered_map<Variable, ValuePtr> outputDataMap = {
+        {outputVar, nullptr}};
+    modelFunc->Evaluate(inputDataMap, outputDataMap, device);
+
+    std::vector<std::vector<float>> resultsWrapper;
+
+    CNTK::ValuePtr outputVal = outputDataMap[outputVar];
+    outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
+  }
+  const auto iters = 100;
+  double es = 0.0;
+  for (int ii =0 ;ii<iters;ii++) {
+    std::unordered_map<Variable, ValuePtr> outputDataMap = {
+        {outputVar, nullptr}};
+    const auto start = now();
+    modelFunc->Evaluate(inputDataMap, outputDataMap, device);
+
+    std::vector<std::vector<float>> resultsWrapper;
+
+    CNTK::ValuePtr outputVal = outputDataMap[outputVar];
+    outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
+    const auto end = now();
+    es += elapsed_time(start, end);
+  }
+ // std::cout << batchSize << ",";
+  std::cout <<  es / iters << "\n";
     json preds = json::array();
 
     for (int cnt = 0; cnt < batchSize; cnt++) {
