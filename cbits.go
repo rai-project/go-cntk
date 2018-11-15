@@ -6,13 +6,14 @@ package cntk
 // #include "cbits/predict.hpp"
 import "C"
 import (
-	"encoding/json"
+	"context"
 	"unsafe"
 
 	"github.com/Unknwon/com"
 	"github.com/pkg/errors"
 	"github.com/rai-project/dlframework/framework/options"
 	nvidiasmi "github.com/rai-project/nvidia-smi"
+	"github.com/rai-project/tracer"
 )
 
 type Predictor struct {
@@ -20,14 +21,19 @@ type Predictor struct {
 	options *options.Options
 }
 
-func New(opts0 ...options.Option) (*Predictor, error) {
+func New(ctx context.Context, opts0 ...options.Option) (*Predictor, error) {
+	span, _ := tracer.StartSpanFromContext(ctx, tracer.MODEL_TRACE, "c_new")
+	defer span.Finish()
+
 	opts := options.New(opts0...)
 	modelFile := string(opts.Graph())
 	if !com.IsFile(modelFile) {
 		return nil, errors.Errorf("file %s not found", modelFile)
 	}
+
 	modelFileString := C.CString(modelFile)
 	defer C.free(unsafe.Pointer(modelFileString))
+
 	deviceType := "CPU"
 	deviceId := 0
 	if opts.UsesGPU() {
@@ -65,36 +71,58 @@ func prod(arry []uint32) int64 {
 	return accum
 }
 
-func (p *Predictor) Predict(input []float32, outputLayerName0 string, shape []uint32) (Predictions, error) {
+func (p *Predictor) Predict(ctx context.Context, data []float32, outputLayerName0 string, shape []uint32) error {
 	if outputLayerName0 == "" {
 		return nil, errors.New("expecting a valid (non-empty) output layer name")
 	}
 	outputLayerName := C.CString(outputLayerName0)
 	defer C.free(unsafe.Pointer(outputLayerName))
 
-	batchSize := int64(p.options.BatchSize())
+	batchSize := p.options.BatchSize()
+	dataLen := len(data)
 	shapeLen := prod(shape)
-	dataLen := int64(len(input)) / shapeLen
-	if batchSize > dataLen {
-		padding := make([]float32, (batchSize-dataLen)*shapeLen)
-		input = append(input, padding...)
+
+	inputCount := dataLen / shapeLen
+	if batchSize > inputCount {
+		padding := make([]float32, (batchSize-inputCount)*shapeLen)
+		data = append(data, padding...)
 	}
+
+	span, _ := tracer.StartSpanFromContext(ctx, tracer.MODEL_TRACE, "c_predict")
+	defer span.Finish()
 
 	ptr := (*C.float)(unsafe.Pointer(&input[0]))
 	r := C.PredictCNTK(p.ctx, ptr, outputLayerName, C.int(batchSize))
 	if r == nil {
-		return nil, errors.New("failed to perform CNTK prediction")
+		return errors.New("failed to perform CNTK prediction")
 	}
 	defer C.free(unsafe.Pointer(r))
-	js := C.GoString(r)
 
-	predictions := []Prediction{}
-	err := json.Unmarshal([]byte(js), &predictions)
-	if err != nil {
-		return nil, err
-	}
-	return predictions, nil
+	return nil
 }
+
+func (p *Predictor) ReadPredictionOutput(ctx context.Context) ([]float32, error) {
+	span, _ := tracer.StartSpanFromContext(ctx, tracer.MODEL_TRACE, "c_read_prediction_output")
+	defer span.Finish()
+
+	batchSize := p.options.BatchSize()
+	predLen := int(C.GetPredLenCNTK(p.ctx))
+	length := batchSize * predLen
+
+	cPredictions := C.GetPredictionsCNTK(p.ctx)
+	if cPredictions == nil {
+		return nil, errors.New("empty predictions")
+	}
+
+	slice := (*[1 << 30]float32)(unsafe.Pointer(cPredictions))[:length:length]
+
+	return slice, nil
+}
+
+func (p Predictor) Close() {
+	C.DeleteCNTK(p.ctx)
+}
+
 func (p *Predictor) StartProfiling(name, metadata string) error {
 	cname := C.CString(name)
 	cmetadata := C.CString(metadata)
@@ -121,8 +149,4 @@ func (p *Predictor) ReadProfile() (string, error) {
 	}
 	defer C.free(unsafe.Pointer(cstr))
 	return C.GoString(cstr), nil
-}
-
-func (p Predictor) Close() {
-	C.DeleteCNTK(p.ctx)
 }
