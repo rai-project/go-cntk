@@ -118,7 +118,7 @@ func TestCNTK(t *testing.T) {
 
 	top1 := features[0][0]
 
-	assert.Equal(t, 287, top1.GetClassification().GetIndex())
+	assert.Equal(t, int32(287), top1.GetClassification().GetIndex())
 
 	if top1.GetClassification().GetLabel() != "n02127052 lynx, catamount" {
 		t.Errorf("CNTK class label wrong")

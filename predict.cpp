@@ -120,8 +120,11 @@ void Predictor::Predict(float *input, const char *output_layer_name,
   pred_len_ = resultsWrapper[0].size();
   const auto pred_size = pred_len_ * sizeof(float);
   std::vector<float> ret;
+
+  result_ = (float*) malloc(batch_size * pred_size);
+
   for (int cnt = 0; cnt < batch_size; cnt++) {
-    memcpy((float *)result_ + cnt * pred_size, &resultsWrapper[cnt], pred_size);
+    memcpy((float *)result_ + cnt * pred_size, resultsWrapper[cnt].data(), pred_size);
   }
 }
 
