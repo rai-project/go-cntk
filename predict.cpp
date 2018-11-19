@@ -1,3 +1,4 @@
+#define __linux__
 #ifdef __linux__
 
 //#define _GLIBCXX_USE_CXX11_ABI 0 // see https://stackoverflow.com/a/33395489
@@ -44,8 +45,10 @@ public:
 
   FunctionPtr modelFunc_{nullptr};
   DeviceDescriptor device_{DeviceDescriptor::CPUDevice()};
-  profile *prof_{nullptr};
+  int pred_len_;
+  void *result_{nullptr};
   bool prof_registered_{false};
+  profile *prof_{nullptr};
 };
 
 inline std::wstring strtowstr(const std::string &str) {
@@ -58,12 +61,75 @@ inline std::string wstrtostr(const std::wstring &wstr) {
   return converter.to_bytes(wstr);
 }
 
+Predictor::Predict(float *input, const char *output_layer_name,
+                   const int batch_size) {
+  if (result_ != nullptr) {
+    free(result_);
+    result_ = nullptr;
+  }
+
+  // Get input variable. The model has only one single input.
+  Variable inputVar = modelFunc_->Arguments()[0];
+
+  Variable outputVar;
+  if (modelFunc_->Outputs().size() == 1) {
+    outputVar = modelFunc_->Output();
+  } else {
+    const auto outputs = modelFunc_->Outputs();
+    const auto output_layer_name_string = strtowstr(output_layer_name);
+    auto f =
+        std::find_if(outputs.begin(), outputs.end(), [=](const Variable &var) {
+          if (var.Name() == output_layer_name_string && var.IsOutput()) {
+            return true;
+          }
+          return false;
+        });
+    if (f == outputs.end()) {
+      std::cerr << "cannot find " << std::string(output_layer_name)
+                << " in the model. Valid outputs are: \n";
+      for (const auto out : modelFunc_->Outputs()) {
+        std::cerr << wstrtostr(out.AsString())
+                  << " with name = " << wstrtostr(out.Name()) << "\n";
+      }
+      std::cerr << "make sure that the layer exists.";
+      return nullptr;
+    }
+    outputVar = *f;
+  }
+
+  // Create input value and input data map
+  std::vector<float> inputData(input, input + inputVar.Shape().TotalSize() *
+                                                  batch_size);
+  ValuePtr inputVal = Value::CreateBatch(inputVar.Shape(), inputData, device_);
+  std::unordered_map<Variable, ValuePtr> inputDataMap = {{inputVar, inputVal}};
+
+  // Create output data map. Using null as Value to indicate using system
+  // allocated memory.
+  // Alternatively, create a Value object and add it to the data map.
+  std::unordered_map<Variable, ValuePtr> outputDataMap = {{outputVar, nullptr}};
+
+  // Start evaluation on the device
+  modelFunc_->Evaluate(inputDataMap, outputDataMap, device_);
+
+  std::vector<std::vector<float>> resultsWrapper;
+
+  CNTK::ValuePtr outputVal = outputDataMap[outputVar];
+  outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
+
+  pred_len_ = resultsWrapper[0].size();
+  const auto pred_size = pred_len_ * sizeof(float);
+  std::vector<float> ret;
+  for (int cnt = 0; cnt < batch_size; cnt++) {
+    memcpy(result_ + cnt * pred_size, resultsWrapper[cnt], pred_size);
+  }
+}
+
 PredictorContext NewCNTK(const char *modelFile, const char *deviceType,
                          const int deviceID) {
   try {
     auto device = DeviceDescriptor::CPUDevice();
     if (deviceType != nullptr && std::string(deviceType) == "GPU") {
-      //std::cerr << "cntk is using the gpu!!\n";
+      // std::cerr << "cntk is using the gpu!!\n";
       device = DeviceDescriptor::GPUDevice(deviceID);
     }
     auto modelFunc =
@@ -71,157 +137,163 @@ PredictorContext NewCNTK(const char *modelFile, const char *deviceType,
     Predictor *pred = new Predictor(modelFunc, device);
     return (PredictorContext)pred;
   } catch (const std::invalid_argument &ex) {
+    LOG(ERROR) << "exception: " << ex.what();
+    errno = EINVAL;
+    return nullptr;
+  } catch (std::exception &ex) {
+    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
+               << "\n";
+    return nullptr;
+  }
+}
+
+void InitCNTK() {}
+
+error_t PredictCNTK(PredictorContext pred, float *input,
+                    const char *output_layer_name, const int batch_size) {
+  try {
+    auto predictor = (Predictor *)pred;
+    if (predictor == nullptr) {
+      std ::cout << __func__ << "  " << __LINE__ << " ... got a null pointer\n";
+      return error_invalid_memory;
+    }
+    predictor->Predict(input, output_layer_name, batch_size);
+    return success;
+  } catch (std::exception &ex) {
+    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
+               << "\n";
+    return error_exception;
+  }
+}
+
+float *GetPredictionsCNTK(PredictorContext pred) {
+  try {
+    auto predictor = (Predictor *)pred;
+    if (predictor == nullptr) {
+      return nullptr;
+    }
+    if (predictor->result_ == nullptr) {
+      throw std::runtime_error("expected a non-nil result");
+    }
+    return (float *)predictor->result_;
+  } catch (std::exception &ex) {
+    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
+               << "\n";
     return nullptr;
   }
 }
 
 void DeleteCNTK(PredictorContext pred) {
-  auto predictor = (Predictor *)pred;
-  if (predictor == nullptr) {
-    return;
-  }
-  delete predictor;
-}
-
-const char *PredictCNTK(PredictorContext pred, float *input,
-                        const char *output_layer_name, const int batchSize) {
-
   try {
     auto predictor = (Predictor *)pred;
     if (predictor == nullptr) {
-      std::cerr << "CNTK prediction error on " << __LINE__ << "\n";
-      return nullptr;
+      return;
     }
-    auto modelFunc = predictor->modelFunc_;
-
-    const auto device = predictor->device_;
-
-    // Get input variable. The model has only one single input.
-    Variable inputVar = modelFunc->Arguments()[0];
-
-    Variable outputVar;
-    if (modelFunc->Outputs().size() == 1) {
-      outputVar = modelFunc->Output();
-    } else {
-      const auto outputs = modelFunc->Outputs();
-      const auto output_layer_name_string = strtowstr(output_layer_name);
-      auto f = std::find_if(
-          outputs.begin(), outputs.end(), [=](const Variable &var) {
-            if (var.Name() == output_layer_name_string && var.IsOutput()) {
-              return true;
-            }
-            return false;
-          });
-      if (f == outputs.end()) {
-        std::cerr << "cannot find " << std::string(output_layer_name)
-                  << " in the model. Valid outputs are: \n";
-        for (const auto out : modelFunc->Outputs()) {
-          std::cerr << wstrtostr(out.AsString())
-                    << " with name = " << wstrtostr(out.Name()) << "\n";
-        }
-        std::cerr << "make sure that the layer exists.";
-        return nullptr;
-      }
-      outputVar = *f;
+    if (predictor->result_) {
+      free(predictor->result_);
     }
-
-    // Create input value and input data map
-    std::vector<float> inputData(input, input + inputVar.Shape().TotalSize() *
-                                                    batchSize);
-    ValuePtr inputVal = Value::CreateBatch(inputVar.Shape(), inputData, device);
-    std::unordered_map<Variable, ValuePtr> inputDataMap = {
-        {inputVar, inputVal}};
-
-    // Create output data map. Using null as Value to indicate using system
-    // allocated memory.
-    // Alternatively, create a Value object and add it to the data map.
-    std::unordered_map<Variable, ValuePtr> outputDataMap = {
-        {outputVar, nullptr}};
-
-    // Start evaluation on the device
-    modelFunc->Evaluate(inputDataMap, outputDataMap, device);
-
-    std::vector<std::vector<float>> resultsWrapper;
-
-    CNTK::ValuePtr outputVal = outputDataMap[outputVar];
-    outputVal.get()->CopyVariableValueTo(outputVar, resultsWrapper);
-
-    const auto output_size = resultsWrapper[0].size();
-
-    json preds = json::array();
-
-    for (int cnt = 0; cnt < batchSize; cnt++) {
-      for (int idx = 0; idx < output_size; idx++) {
-        preds.push_back(
-            {{"index", idx}, {"probability", resultsWrapper[cnt][idx]}});
-      }
+    if (predictor->prof_) {
+      predictor->prof_->reset();
+      delete predictor->prof_;
+      predictor->prof_ = nullptr;
     }
-
-    auto res = strdup(preds.dump().c_str());
-    return res;
-  } catch (const std::runtime_error &e) {
-    std::cerr << "failed to perform predict on cntk model :: runtime error :: "
-              << e.what() << "\n";
-    return nullptr;
-  } catch (const std::exception &e) {
-    std::cerr << "failed to perform predict on cntk model :: exception :: "
-              << e.what() << "\n";
-    return nullptr;
+    delete predictor;
+  } catch (std::exception &ex) {
+    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
+               << "\n";
+    return;
   }
 }
 
-void CNTKInit() {}
-
-void CNTKStartProfiling(PredictorContext pred, const char *name,
+void StartProfilingCNTK(PredictorContext pred, const char *name,
                         const char *metadata) {
-  auto predictor = (Predictor *)pred;
-  if (predictor == nullptr) {
+  try {
+    if (name == nullptr) {
+      name = "";
+    }
+    if (metadata == nullptr) {
+      metadata = "";
+    }
+    if (pred == nullptr) {
+      return;
+    }
+    auto predictor = (Predictor *)pred;
+    predictor->profile_enabled_ = true;
+    if (predictor->prof_ == nullptr) {
+      predictor->prof_ = new profile(name, metadata);
+    } else {
+      predictor->prof_->reset();
+    }
+  } catch (std::exception &ex) {
+    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
+               << "\n";
     return;
-  }
-  if (name == nullptr) {
-    name = "";
-  }
-  if (metadata == nullptr) {
-    metadata = "";
-  }
-  if (predictor->prof_ == nullptr) {
-    predictor->prof_ = new profile(name, metadata);
-  } else {
-    predictor->prof_->reset();
   }
 }
 
-void CNTKEndProfiling(PredictorContext pred) {
-  auto predictor = (Predictor *)pred;
-  if (predictor == nullptr) {
+void EndProfilingCNTK(PredictorContext pred) {
+  try {
+    auto predictor = (Predictor *)pred;
+    if (predictor == nullptr) {
+      return;
+    }
+    if (predictor->prof_) {
+      predictor->prof_->end();
+    }
+  } catch (std::exception &ex) {
+    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
+               << "\n";
     return;
-  }
-  if (predictor->prof_) {
-    predictor->prof_->end();
   }
 }
 
-void CNTKDisableProfiling(PredictorContext pred) {
-  auto predictor = (Predictor *)pred;
-  if (predictor == nullptr) {
+void DisableProfilingCNTK(PredictorContext pred) {
+  try {
+    auto predictor = (Predictor *)pred;
+    if (predictor == nullptr) {
+      return;
+    }
+    if (predictor->prof_) {
+      predictor->prof_->reset();
+    }
+  } catch (std::exception &ex) {
+    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
+               << "\n";
     return;
-  }
-  if (predictor->prof_) {
-    predictor->prof_->reset();
   }
 }
 
-char *CNTKReadProfile(PredictorContext pred) {
-  auto predictor = (Predictor *)pred;
-  if (predictor == nullptr) {
-    return strdup("");
+char *ReadProfileCNTK(PredictorContext pred) {
+  try {
+    auto predictor = (Predictor *)pred;
+    if (predictor == nullptr) {
+      return strdup("");
+    }
+    if (predictor->prof_ == nullptr) {
+      return strdup("");
+    }
+    const auto s = predictor->prof_->read();
+    const auto cstr = s.c_str();
+    return strdup(cstr);
+  } catch (std::exception &ex) {
+    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
+               << "\n";
+    return nullptr;
   }
-  if (predictor->prof_ == nullptr) {
-    return strdup("");
+}
+
+int GetPredLenCNTK(PredictorContext pred) {
+  try {
+    auto predictor = (Predictor *)pred;
+    if (predictor == nullptr) {
+      return 0;
+    }
+    return predictor->pred_len_;
+  } catch (std::exception &ex) {
+    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
+               << "\n";
+    return 0;
   }
-  const auto s = predictor->prof_->read();
-  const auto cstr = s.c_str();
-  return strdup(cstr);
 }
 
 #endif // __linux__
