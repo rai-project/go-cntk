@@ -48,7 +48,7 @@ public:
   DeviceDescriptor device_{DeviceDescriptor::CPUDevice()};
   int pred_len_;
   void *result_{nullptr};
-  bool prof_enabled_{false};
+  bool profile_enabled_{false};
   profile *prof_{nullptr};
 };
 
@@ -81,9 +81,9 @@ void Predictor::Predict(float *input, const char *output_layer_name,
     auto f =
         std::find_if(outputs.begin(), outputs.end(), [=](const Variable &var) {
           if (var.Name() == output_layer_name_string && var.IsOutput()) {
-            return true;
+            return ;
           }
-          return false;
+          return ;
         });
     if (f == outputs.end()) {
       std::cerr << "cannot find " << std::string(output_layer_name)
@@ -93,7 +93,7 @@ void Predictor::Predict(float *input, const char *output_layer_name,
                   << " with name = " << wstrtostr(out.Name()) << "\n";
       }
       std::cerr << "make sure that the layer exists.";
-      return nullptr;
+      return ;
     }
     outputVar = *f;
   }
