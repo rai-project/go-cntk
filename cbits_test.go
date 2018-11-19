@@ -1,6 +1,7 @@
 package cntk
 
 import (
+	"context"
 	"io/ioutil"
 	"math"
 	"os"
@@ -19,6 +20,9 @@ import (
 	"github.com/rai-project/dlframework/framework/options"
 	"github.com/rai-project/image"
 	"github.com/rai-project/image/types"
+
+	"github.com/rai-project/tracer"
+	_ "github.com/rai-project/tracer/jaeger"
 )
 
 var (
@@ -29,6 +33,7 @@ var (
 )
 
 func TestCNTK(t *testing.T) {
+	defer tracer.Close()
 
 	nvidiasmi.Init()
 
@@ -67,7 +72,9 @@ func TestCNTK(t *testing.T) {
 		device = options.CUDA_DEVICE
 	}
 
-	predictor, err := New(
+	ctx := context.Background()
+
+	predictor, err := New(ctx,
 		options.Graph([]byte(graphFilePath)),
 		options.BatchSize(batchSize),
 		options.Device(device, 0),
@@ -80,7 +87,7 @@ func TestCNTK(t *testing.T) {
 
 	defer predictor.Close()
 
-	err := predictor.Predict(imgArray, "z", []uint32{3, 227, 227})
+	err = predictor.Predict(ctx, imgArray, "z", []int{3, 227, 227})
 	if err != nil {
 		t.Errorf("CNTK inference failed %v", err)
 	}
@@ -110,12 +117,14 @@ func TestCNTK(t *testing.T) {
 		features[ii] = rprobs
 	}
 
-	assert.Equal(t, 287, features[0].Index)
+	top1 := features[0]
 
-	if labels[features[0].Index] != "n02127052 lynx, catamount" {
+	assert.Equal(t, 287, top1.GetClassification().GetIndex())
+
+	if top1.GetClassification().GetLabel() != "n02127052 lynx, catamount" {
 		t.Errorf("CNTK class label wrong")
 	}
-	if math.Abs(float64(result[0].Probability-0.324)) > .001 {
+	if math.Abs(float64(top1.GetProbability()-0.324)) > .001 {
 		t.Errorf("CNTK class probablity wrong")
 	}
 }
