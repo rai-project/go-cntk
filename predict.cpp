@@ -1,3 +1,4 @@
+#define __linux__
 #ifdef __linux__
 
 //#define _GLIBCXX_USE_CXX11_ABI 0 // see https://stackoverflow.com/a/33395489
@@ -81,9 +82,9 @@ void Predictor::Predict(float *input, const char *output_layer_name,
     auto f =
         std::find_if(outputs.begin(), outputs.end(), [=](const Variable &var) {
           if (var.Name() == output_layer_name_string && var.IsOutput()) {
-            return ;
+            return true;
           }
-          return ;
+          return false;
         });
     if (f == outputs.end()) {
       std::cerr << "cannot find " << std::string(output_layer_name)
@@ -93,7 +94,7 @@ void Predictor::Predict(float *input, const char *output_layer_name,
                   << " with name = " << wstrtostr(out.Name()) << "\n";
       }
       std::cerr << "make sure that the layer exists.";
-      return ;
+      return;
     }
     outputVar = *f;
   }
