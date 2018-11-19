@@ -52,28 +52,33 @@ func New(ctx context.Context, opts0 ...options.Option) (*Predictor, error) {
 	deviceTypeString := C.CString(deviceType)
 	defer C.free(unsafe.Pointer(deviceTypeString))
 
-	ctx := C.NewCNTK(
+	pred := C.NewCNTK(
 		modelFileString,
 		deviceTypeString,
 		C.int(deviceId),
 	)
+
+	if pred == nil {
+		log.Panicln("unable to create cntk predictor")
+	}
+
 	return &Predictor{
-		ctx:     ctx,
+		ctx:     pred,
 		options: opts,
 	}, nil
 }
 
-func prod(arry []uint32) int64 {
-	accum := int64(1)
+func prod(arry []int) int {
+	accum := 1
 	for _, e := range arry {
-		accum *= int64(e)
+		accum *= e
 	}
 	return accum
 }
 
 func (p *Predictor) Predict(ctx context.Context, data []float32, outputLayerName0 string, shape []uint32) error {
 	if outputLayerName0 == "" {
-		return nil, errors.New("expecting a valid (non-empty) output layer name")
+		return errors.New("expecting a valid (non-empty) output layer name")
 	}
 	outputLayerName := C.CString(outputLayerName0)
 	defer C.free(unsafe.Pointer(outputLayerName))
@@ -91,13 +96,12 @@ func (p *Predictor) Predict(ctx context.Context, data []float32, outputLayerName
 	span, _ := tracer.StartSpanFromContext(ctx, tracer.MODEL_TRACE, "c_predict")
 	defer span.Finish()
 
-	ptr := (*C.float)(unsafe.Pointer(&input[0]))
-	r := C.PredictCNTK(p.ctx, ptr, outputLayerName, C.int(batchSize))
-	if r == nil {
-		return errors.New("failed to perform CNTK prediction")
-	}
-	defer C.free(unsafe.Pointer(r))
-
+	ptr := (*C.float)(unsafe.Pointer(&data[0]))
+	ok := C.PredictCNTK(p.ctx, ptr, outputLayerName, C.int(batchSize))
+	if ok != 0 {
+		return errors.New("unable to perform cntk prediction")
+  }
+  
 	return nil
 }
 
