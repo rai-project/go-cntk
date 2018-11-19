@@ -1,31 +1,39 @@
-#ifndef __CNTK_PREDICT_HPP__
-#define __CNTK_PREDICT_HPP__
+#ifndef ___PREDICT_HPP__
+#define ___PREDICT_HPP__
 
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
+#include "timer.h"
+
 typedef void *PredictorContext;
 
 PredictorContext NewCNTK(const char *modelFile, const char *deviceType,
                          const int deviceID);
+
+void InitCNTK();
+
+error_t PredictCNTK(PredictorContext pred, float *input,
+                    const char *output_layer_name, int batch_size);
+
+float *GetPredictionsCNTK(PredictorContext pred);
+
 void DeleteCNTK(PredictorContext pred);
-const char *PredictCNTK(PredictorContext pred, float *input,
-                        const char *output_layer_name, int batchSize);
 
-void CNTKInit();
-
-void CNTKStartProfiling(PredictorContext pred, const char *name,
+void StartProfilingCNTK(PredictorContext pred, const char *name,
                         const char *metadata);
 
-void CNTKEndProfiling(PredictorContext pred);
+void EndProfilingCNTK(PredictorContext pred);
 
-void CNTKDisableProfiling(PredictorContext pred);
+void DisableProfilingCNTK(PredictorContext pred);
 
-char *CNTKReadProfile(PredictorContext pred);
+char *ReadProfileCNTK(PredictorContext pred);
+
+int GetPredLenCNTK(PredictorContext pred);
 
 #ifdef __cplusplus
 }
 #endif // __cplusplus
 
-#endif // __CNTK_PREDICT_HPP__
+#endif // ___PREDICT_HPP__
