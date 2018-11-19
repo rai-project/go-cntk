@@ -128,22 +128,22 @@ func (p *Predictor) StartProfiling(name, metadata string) error {
 	cmetadata := C.CString(metadata)
 	defer C.free(unsafe.Pointer(cname))
 	defer C.free(unsafe.Pointer(cmetadata))
-	C.CNTKStartProfiling(p.ctx, cname, cmetadata)
+	C.StartProfilingCNTK(p.ctx, cname, cmetadata)
 	return nil
 }
 
 func (p *Predictor) EndProfiling() error {
-	C.CNTKEndProfiling(p.ctx)
+	C.EndProfilingCNTK(p.ctx)
 	return nil
 }
 
 func (p *Predictor) DisableProfiling() error {
-	C.CNTKDisableProfiling(p.ctx)
+	C.DisableProfilingCNTK(p.ctx)
 	return nil
 }
 
 func (p *Predictor) ReadProfile() (string, error) {
-	cstr := C.CNTKReadProfile(p.ctx)
+	cstr := C.ReadProfileCNTK(p.ctx)
 	if cstr == nil {
 		return "", errors.New("failed to read nil profile")
 	}
