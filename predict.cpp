@@ -62,8 +62,8 @@ inline std::string wstrtostr(const std::wstring &wstr) {
   return converter.to_bytes(wstr);
 }
 
-Predictor::Predict(float *input, const char *output_layer_name,
-                   const int batch_size) {
+void Predictor::Predict(float *input, const char *output_layer_name,
+                        const int batch_size) {
   if (result_ != nullptr) {
     free(result_);
     result_ = nullptr;
@@ -121,7 +121,7 @@ Predictor::Predict(float *input, const char *output_layer_name,
   const auto pred_size = pred_len_ * sizeof(float);
   std::vector<float> ret;
   for (int cnt = 0; cnt < batch_size; cnt++) {
-    memcpy(result_ + cnt * pred_size, resultsWrapper[cnt], pred_size);
+    memcpy((float *)result_ + cnt * pred_size, &resultsWrapper[cnt], pred_size);
   }
 }
 
@@ -142,8 +142,7 @@ PredictorContext NewCNTK(const char *modelFile, const char *deviceType,
     errno = EINVAL;
     return nullptr;
   } catch (std::exception &ex) {
-    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
-               << "\n";
+    RuntimeError("exception: catch all [  %s  ]\n", ex.what());
     return nullptr;
   }
 }
@@ -161,8 +160,7 @@ error_t PredictCNTK(PredictorContext pred, float *input,
     predictor->Predict(input, output_layer_name, batch_size);
     return success;
   } catch (std::exception &ex) {
-    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
-               << "\n";
+    RuntimeError("exception: catch all [  %s  ]\n", ex.what());
     return error_exception;
   }
 }
@@ -178,8 +176,7 @@ float *GetPredictionsCNTK(PredictorContext pred) {
     }
     return (float *)predictor->result_;
   } catch (std::exception &ex) {
-    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
-               << "\n";
+    RuntimeError("exception: catch all [  %s  ]\n", ex.what());
     return nullptr;
   }
 }
@@ -200,8 +197,7 @@ void DeleteCNTK(PredictorContext pred) {
     }
     delete predictor;
   } catch (std::exception &ex) {
-    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
-               << "\n";
+    RuntimeError("exception: catch all [  %s  ]\n", ex.what());
     return;
   }
 }
@@ -226,8 +222,7 @@ void StartProfilingCNTK(PredictorContext pred, const char *name,
       predictor->prof_->reset();
     }
   } catch (std::exception &ex) {
-    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
-               << "\n";
+    RuntimeError("exception: catch all [  %s  ]\n", ex.what());
     return;
   }
 }
@@ -242,8 +237,7 @@ void EndProfilingCNTK(PredictorContext pred) {
       predictor->prof_->end();
     }
   } catch (std::exception &ex) {
-    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
-               << "\n";
+    RuntimeError("exception: catch all [  %s  ]\n", ex.what());
     return;
   }
 }
@@ -258,8 +252,7 @@ void DisableProfilingCNTK(PredictorContext pred) {
       predictor->prof_->reset();
     }
   } catch (std::exception &ex) {
-    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
-               << "\n";
+    RuntimeError("exception: catch all [  %s  ]\n", ex.what());
     return;
   }
 }
@@ -277,8 +270,7 @@ char *ReadProfileCNTK(PredictorContext pred) {
     const auto cstr = s.c_str();
     return strdup(cstr);
   } catch (std::exception &ex) {
-    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
-               << "\n";
+    RuntimeError("exception: catch all [  %s  ]\n", ex.what());
     return nullptr;
   }
 }
@@ -291,8 +283,7 @@ int GetPredLenCNTK(PredictorContext pred) {
     }
     return predictor->pred_len_;
   } catch (std::exception &ex) {
-    LOG(ERROR) << "exception: catch all [ " << ex.what() << "]"
-               << "\n";
+    RuntimeError("exception: catch all [  %s  ]\n", ex.what());
     return 0;
   }
 }
