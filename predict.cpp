@@ -48,7 +48,7 @@ public:
   DeviceDescriptor device_{DeviceDescriptor::CPUDevice()};
   int pred_len_;
   void *result_{nullptr};
-  bool prof_registered_{false};
+  bool prof_enabled_{false};
   profile *prof_{nullptr};
 };
 
@@ -138,7 +138,7 @@ PredictorContext NewCNTK(const char *modelFile, const char *deviceType,
     Predictor *pred = new Predictor(modelFunc, device);
     return (PredictorContext)pred;
   } catch (const std::invalid_argument &ex) {
-    LOG(ERROR) << "exception: " << ex.what();
+    RuntimeError("exception:  %s\n", ex.what());
     errno = EINVAL;
     return nullptr;
   } catch (std::exception &ex) {

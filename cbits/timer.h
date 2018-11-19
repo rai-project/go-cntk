@@ -11,6 +11,7 @@ const int success = 0;
 const int error_invalid_argument = 1;
 const int error_invalid_memory = 2;
 const int error_not_implemented = 3;
+const int error_exception = 4;
 
 struct profile_entry;
 struct profile;
