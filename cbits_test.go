@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -13,14 +14,17 @@ import (
 	"github.com/GeertJohan/go-sourcepath"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/rai-project/dlframework"
+	"github.com/rai-project/dlframework/framework/feature"
 	"github.com/rai-project/dlframework/framework/options"
 	"github.com/rai-project/image"
 	"github.com/rai-project/image/types"
 )
 
 var (
+	batchSize     = 64
 	thisDir       = sourcepath.MustAbsoluteDir()
-	classFilePath = filepath.Join(thisDir, "_fixtures", "ilsvrc12_synset_words.txt")
+	labelFilePath = filepath.Join(thisDir, "_fixtures", "ilsvrc12_synset_words.txt")
 	graphFilePath = filepath.Join("/home/abduld/code/cntk/PretrainedModels", "AlexNet_ImageNet_Caffe.model")
 )
 
@@ -58,33 +62,57 @@ func TestCNTK(t *testing.T) {
 		}
 	}
 
-	err := New(
+	device := options.CPU_DEVICE
+	if nvidiasmi.HasGPU {
+		device = options.CUDA_DEVICE
+	}
+
+	predictor, err := New(
 		options.Graph([]byte(graphFilePath)),
-		options.BatchSize(1),
-		options.Device(options.CUDA_DEVICE, 0),
+		options.BatchSize(batchSize),
+		options.Device(device, 0),
 	)
+
 	if err != nil {
 		t.Errorf("CNTK initiate failed %v", err)
 		return
 	}
 
-	defer pred.Close()
+	defer predictor.Close()
 
-	err := pred.Predict(imgArray, "z", []uint32{3, 227, 227})
+	err := predictor.Predict(imgArray, "z", []uint32{3, 227, 227})
 	if err != nil {
 		t.Errorf("CNTK inference failed %v", err)
 	}
 
-	classesFileContent, err := ioutil.ReadFile(classFilePath)
+	output, err := predictor.ReadPredictionOutput(ctx)
+	if err != nil {
+		panic(err)
+	}
+
+	labelsFileContent, err := ioutil.ReadFile(labelFilePath)
 	assert.NoError(t, err)
+	labels := strings.Split(string(labelsFileContent), "\n")
 
-	classes := strings.Split(string(classesFileContent), "\n")
+	features := make([]dlframework.Features, batchSize)
+	featuresLen := len(output) / batchSize
 
-	// pp.Println(result[:10])
-	assert.Equal(t, 287, result[0].Index)
+	for ii := 0; ii < batchSize; ii++ {
+		rprobs := make([]*dlframework.Feature, featuresLen)
+		for jj := 0; jj < featuresLen; jj++ {
+			rprobs[jj] = feature.New(
+				feature.ClassificationIndex(int32(jj)),
+				feature.ClassificationLabel(labels[jj]),
+				feature.Probability(output[ii*featuresLen+jj]),
+			)
+		}
+		sort.Sort(dlframework.Features(rprobs))
+		features[ii] = rprobs
+	}
 
-	// pp.Println(result[0])
-	if classes[result[0].Index] != "n02127052 lynx, catamount" {
+	assert.Equal(t, 287, features[0].Index)
+
+	if labels[features[0].Index] != "n02127052 lynx, catamount" {
 		t.Errorf("CNTK class label wrong")
 	}
 	if math.Abs(float64(result[0].Probability-0.324)) > .001 {
