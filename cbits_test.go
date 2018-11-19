@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/rai-project/config"
 	"github.com/rai-project/nvidia-smi"
 
 	"github.com/GeertJohan/go-sourcepath"
@@ -26,7 +27,7 @@ import (
 )
 
 var (
-	batchSize     = 64
+	batchSize     = 1
 	thisDir       = sourcepath.MustAbsoluteDir()
 	labelFilePath = filepath.Join(thisDir, "_fixtures", "ilsvrc12_synset_words.txt")
 	graphFilePath = filepath.Join("/home/abduld/code/cntk/PretrainedModels", "AlexNet_ImageNet_Caffe.model")
@@ -34,8 +35,6 @@ var (
 
 func TestCNTK(t *testing.T) {
 	defer tracer.Close()
-
-	nvidiasmi.Init()
 
 	reader, _ := os.Open(filepath.Join(thisDir, "_fixtures", "cat.jpg"))
 	defer reader.Close()
@@ -117,7 +116,7 @@ func TestCNTK(t *testing.T) {
 		features[ii] = rprobs
 	}
 
-	top1 := features[0]
+	top1 := features[0][0]
 
 	assert.Equal(t, 287, top1.GetClassification().GetIndex())
 
@@ -127,4 +126,14 @@ func TestCNTK(t *testing.T) {
 	if math.Abs(float64(top1.GetProbability()-0.324)) > .001 {
 		t.Errorf("CNTK class probablity wrong")
 	}
+}
+
+func TestMain(m *testing.M) {
+	config.Init(
+		config.AppName("carml"),
+		config.VerboseMode(true),
+		config.DebugMode(true),
+	)
+
+	os.Exit(m.Run())
 }
