@@ -58,7 +58,7 @@ func TestCNTK(t *testing.T) {
 		}
 	}
 
-	pred, err := New(
+	err := New(
 		options.Graph([]byte(graphFilePath)),
 		options.BatchSize(1),
 		options.Device(options.CUDA_DEVICE, 0),
@@ -70,12 +70,10 @@ func TestCNTK(t *testing.T) {
 
 	defer pred.Close()
 
-	result, err := pred.Predict(imgArray, "z", []uint32{3, 227, 227})
+	err := pred.Predict(imgArray, "z", []uint32{3, 227, 227})
 	if err != nil {
 		t.Errorf("CNTK inference failed %v", err)
 	}
-
-	result.Sort()
 
 	classesFileContent, err := ioutil.ReadFile(classFilePath)
 	assert.NoError(t, err)

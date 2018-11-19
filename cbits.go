@@ -76,7 +76,7 @@ func prod(arry []int) int {
 	return accum
 }
 
-func (p *Predictor) Predict(ctx context.Context, data []float32, outputLayerName0 string, shape []uint32) error {
+func (p *Predictor) Predict(ctx context.Context, data []float32, outputLayerName0 string, shape []int) error {
 	if outputLayerName0 == "" {
 		return errors.New("expecting a valid (non-empty) output layer name")
 	}
@@ -100,8 +100,8 @@ func (p *Predictor) Predict(ctx context.Context, data []float32, outputLayerName
 	ok := C.PredictCNTK(p.ctx, ptr, outputLayerName, C.int(batchSize))
 	if ok != 0 {
 		return errors.New("unable to perform cntk prediction")
-  }
-  
+	}
+
 	return nil
 }
 

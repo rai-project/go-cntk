@@ -1,4 +1,3 @@
-#define __linux__
 #ifdef __linux__
 
 //#define _GLIBCXX_USE_CXX11_ABI 0 // see https://stackoverflow.com/a/33395489
