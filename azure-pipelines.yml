@@ -1,5 +1,5 @@
 jobs:
-	- job: CPU
+  - job: CPU
     pool:
       vmImage: 'Ubuntu 16.04'
     steps:
@@ -19,7 +19,7 @@ jobs:
           make docker_push_gpu
   - job: Update_Microbadger
     dependsOn:
-			- CPU
+      - CPU
       - GPU
     steps:
       - script: 'curl -X POST https://hooks.microbadger.com/images/carml/go-cntk/a46fWgQL-lTcwsrnEWaa2Y8s2n8='
