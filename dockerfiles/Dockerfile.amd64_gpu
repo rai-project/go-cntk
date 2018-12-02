@@ -1,4 +1,4 @@
-FROM carml/base:amd64-gpu-latest
+FROM carml/base:amd64-gpu-mlperf-latest
 MAINTAINER Abdul Dakkak <dakkak@illinois.edu>
 
 # Build-time metadata as defined at http://label-schema.org
@@ -45,6 +45,13 @@ RUN CNTK_VERSION_DASHED=$(echo $FRAMEWORK_VERSION | tr . -) && \
 ########## GO BINDING INSTALLATION ###############
 ENV PKG github.com/rai-project/go-cntk
 WORKDIR $GOPATH/src/$PKG
+
+ENV LD_LIBRARY_PATH /usr/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}
+ENV LIBRARY_PATH /usr/lib/x86_64-linux-gnu:${LIBRARY_PATH}
+
+#### DEBUG #####
+RUN rm -rf  /usr/local/cuda-9.0/targets/x86_64-linux/lib/stubs/
+RUN ls -l /usr/local/cuda-9.0/targets/x86_64-linux/lib
 
 RUN git clone --depth=1 --branch=master https://${PKG}.git . && \
   dep ensure -v && \
