@@ -23,6 +23,9 @@ LABEL org.carml.go-cntk.build-date=$BUILD_DATE \
 ########## LIBRARY INSTALLATION ###################
 WORKDIR /opt
 
+## For libpng12-0
+RUN echo "deb http://mirrors.kernel.org/ubuntu/ xenial main" | tee -a /etc/apt/sources.list
+
 RUN apt-get update && apt-get install -y sudo && rm -rf /var/lib/apt/lists/*
 
 RUN CNTK_VERSION_DASHED=$(echo $FRAMEWORK_VERSION | tr . -) && \
