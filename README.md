@@ -1,4 +1,4 @@
-# Go bindings for Microsoft CNTK [![Build Status](https://travis-ci.org/rai-project/go-cntk.svg?branch=master)](https://travis-ci.org/rai-project/go-cntk)
+# Go bindings for Microsoft CNTK [![Build Status](https://travis-ci.org/rai-project/go-cntk.svg?branch=master)](https://travis-ci.org/rai-project/go-cntk) [![Build Status](https://dev.azure.com/dakkak/rai/_apis/build/status/go-cntk)](https://dev.azure.com/dakkak/rai/_build/latest?definitionId=11)
 
 ### CNTK Installation
 
